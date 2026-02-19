@@ -1,0 +1,147 @@
+#+title: org-task
+
+Deterministic weighted task sampling and task lifecycle handling for Org mode.
+
+* Project Overview
+
+~org-task~ helps you keep a focused, rotating shortlist of tasks without random churn.
+~org-task~ is designed for agenda-like workflows, without the need for explicit date scheduling. Instead it provides rotating shortlist of tasks with dynamic sampling.
+
+- It reads eligible tasks from one Org file (default: ~org-directory/tasks.org~).
+- It samples ~K~ tasks using weighted deterministic sampling with temperature ~T~.
+- It keeps picks stable for a given seed (default seed: local date), so your list is reproducible.
+- It supports task lifecycle metadata updates from both Org buffers and Org Agenda.
+
+Why this package:
+
+- A plain random list tends to reshuffle too much.
+- A purely static top-priority list can starve other tasks forever.
+- ~org-task~ balances both: stable deterministic noise + weighted urgency/recency.
+
+How it works at a high level:
+
+- Each eligible task gets a stable ~ID~.
+- Weight is computed from base weight, tweak, age boost, and open-pressure boost.
+- A deterministic pseudo-random value is derived from ~(seed, id)~.
+- Tasks are ranked by weighted sampling key and top ~K~ are selected.
+
+* Installation (straight.el from GitHub)
+
+If you install directly from GitHub with ~straight.el~:
+
+#+begin_src emacs-lisp
+(straight-use-package
+ '(org-task :type git :host github :repo "vardwyn/org-task"))
+#+end_src
+
+If you use ~use-package~ + ~straight~:
+
+#+begin_src emacs-lisp
+(use-package org-task
+  :straight (:type git :host github :repo "vardwyn/org-task"))
+#+end_src
+
+* Quick Start (One-Size-Fits-Most)
+
+Use this as a practical default setup:
+
+#+begin_src emacs-lisp
+(use-package org-task
+  :straight (:type git :host github :repo "vardwyn/org-task")
+  :after org
+  :custom
+  (org-task-file (expand-file-name "tasks.org" org-directory))
+  (org-task-include-tag "task")
+  (org-task-default-k 5)
+  (org-task-default-temperature 1.0)
+  (org-task-age-s0 7.0)
+  (org-task-age-alpha 1.2)
+  (org-task-open-s0 7.0)
+  (org-task-open-alpha 1.2)
+  (org-task-once-backlog-keyword "TODO")
+  (org-task-once-active-keyword "STRT")
+  (org-task-finalize-keyword "FIN")
+  :config
+  (org-task-mode 1)
+  (add-to-list
+   'org-agenda-custom-commands
+   `("T" "Sampled org-task list"
+     ,(list (org-task-agenda-block "Sampled org-task entries" 5 1.0)))))
+#+end_src
+
+Minimum data model in your task file:
+
+- Use leaf headings tagged ~:task:~ as sampleable tasks.
+- Non-leaf headings can hold inherited properties for subtrees.
+- ~ID~ is created automatically when needed.
+- If you want fast TODO selection in agenda (e.g. ~t d~, ~t s~), define TODO
+  keywords with fast keys, e.g. ~#+TODO: TODO(t) STRT(s) | DONE(d) FIN(f)~.
+
+Sample tasks from Lisp:
+
+#+begin_src emacs-lisp
+(org-task-sample-tasks)        ;; uses configured defaults
+(org-task-sample-tasks 8 0.8)  ;; explicit K and temperature
+#+end_src
+
+Show sampled titles in minibuffer:
+
+#+begin_src emacs-lisp
+(message "%S"
+         (mapcar #'org-task-core-task-title
+                 (org-task-sample-tasks)))
+#+end_src
+
+See also tasks.org for example task file.
+
+** Agenda Integration
+Extend agenda views:
+
+- Use ~org-task-agenda-block~ to inject sampled tasks into custom commands.
+- Or call ~org-task-agenda-skip-non-sampled~ directly in a hand-written block.
+
+Helper block (recommended):
+
+#+begin_src emacs-lisp
+(org-task-agenda-block "Sampled org-task entries" 5 1.0)
+#+end_src
+
+Manual block wiring:
+
+#+begin_src emacs-lisp
+(tags "task"
+      ((org-agenda-files (list org-task-file))
+       (org-agenda-skip-function '(org-task-agenda-skip-non-sampled 5 1.0))))
+#+end_src
+
+* Task Properties
+
+- ~ID~: Org built-in stable identifier used for deterministic sampling keys.
+- ~ORG_TASK_WEIGHT~: inherited base weight multiplier.
+- ~ORG_TASK_TWEAK~: per-task tweak multiplier; if unset, Org priority maps to tweak
+  (~high=2.0~, ~default/none=1.0~, ~low=0.5~).
+- ~ORG_TASK_AGE_S0~, ~ORG_TASK_AGE_ALPHA~, ~ORG_TASK_AGE_CAP~: per-task age boost controls.
+- ~ORG_TASK_OPEN_S0~, ~ORG_TASK_OPEN_ALPHA~, ~ORG_TASK_OPEN_CAP~: per-task open-pressure controls.
+- ~ORG_TASK_REPEAT~: ~repeat~ (default) or ~once~ lifecycle mode.
+- ~ORG_TASK_OPENED_ON~: first-open date for once-tasks (YYYY-MM-DD).
+- ~ORG_TASK_LAST_DONE~: last completion date (YYYY-MM-DD).
+
+* Done-State Lifecycle
+
+- Repeat tasks (~ORG_TASK_REPEAT=repeat~):
+  - Marking done with non-final done keyword updates ~ORG_TASK_LAST_DONE~ and reopens task.
+  - Marking done with finalize keyword (default ~FIN~) keeps task closed permanently.
+- Once tasks (~ORG_TASK_REPEAT=once~):
+  - First non-final done (typically ~TODO -> DONE~): writes ~ORG_TASK_OPENED_ON~, moves task to ~STRT~.
+  - Subsequent non-final done while opened: updates ~ORG_TASK_LAST_DONE~, keeps ~OPENED_ON~, moves back to ~STRT~.
+  - Final done using finalize keyword (~FIN~): updates ~LAST_DONE~, keeps task closed.
+
+Hook transitions work from both Org buffers and Agenda TODO changes.
+
+* Development
+
+Run tests from repo root:
+
+#+begin_src shell
+make test
+#+end_src

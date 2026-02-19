@@ -1,0 +1,44 @@
+#+title: Tasks
+#+TODO: TODO(t) STRT(s) | DONE(d) FIN(f)
+
+* Work defaults
+:PROPERTIES:
+:ORG_TASK_WEIGHT: 1.2
+:ORG_TASK_AGE_S0: 7
+:ORG_TASK_AGE_ALPHA: 1.2
+:ORG_TASK_AGE_CAP: 6
+:ORG_TASK_OPEN_S0: 5
+:ORG_TASK_OPEN_ALPHA: 1.0
+:ORG_TASK_OPEN_CAP: 4
+:ORG_TASK_REPEAT: repeat
+:END:
+
+** TODO [#A] Fix flaky backup test :task:
+:PROPERTIES:
+:ORG_TASK_TWEAK: 1.6
+:END:
+
+** TODO [#C] Refactor old parser :task:
+:PROPERTIES:
+:ID: 7d7a5ec0-9f19-4a7d-9f69-a2dc0a0f12ab
+:ORG_TASK_WEIGHT: 0.8
+:END:
+
+* One-shot tasks
+:PROPERTIES:
+:ORG_TASK_REPEAT: once
+:ORG_TASK_WEIGHT: 1.0
+:END:
+
+** TODO Draft migration guide :task:
+
+** STRT Collect rollout metrics :task:
+:PROPERTIES:
+:ORG_TASK_OPENED_ON: 2026-02-10
+:ORG_TASK_LAST_DONE: 2026-02-16
+:END:
+
+** FIN Archive legacy runbook :task:
+:PROPERTIES:
+:ORG_TASK_LAST_DONE: 2026-01-20
+:END:
