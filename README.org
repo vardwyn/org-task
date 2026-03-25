@@ -10,6 +10,7 @@ Deterministic weighted task sampling and task lifecycle handling for Org mode.
 - It reads eligible tasks from one Org file (default: ~org-directory/tasks.org~).
 - It samples ~K~ tasks using weighted deterministic sampling with temperature ~T~.
 - It keeps picks stable for a given seed (default seed: local date), so your list is reproducible.
+- It can reroll today's sample by bumping a file-level seed iterator.
 - It supports task lifecycle metadata updates from both Org buffers and Org Agenda.
 
 Why this package:
@@ -82,6 +83,7 @@ Sample tasks from Lisp:
 #+begin_src emacs-lisp
 (org-task-sample-tasks)        ;; uses configured defaults
 (org-task-sample-tasks 8 0.8)  ;; explicit K and temperature
+(org-task-reroll-today)        ;; bump today's iterator and reroll the sample
 #+end_src
 
 Show sampled titles in minibuffer:
@@ -125,6 +127,8 @@ Manual block wiring:
 - ~ORG_TASK_REPEAT~: ~repeat~ (default) or ~once~ lifecycle mode.
 - ~ORG_TASK_OPENED_ON~: first-open date for once-tasks (YYYY-MM-DD).
 - ~ORG_TASK_LAST_DONE~: last completion date (YYYY-MM-DD).
+- ~ORG_TASK_SEED_ITERATOR~: top-level file property used to reroll today's sample
+  without changing the date seed.
 
 * Done-State Lifecycle
 

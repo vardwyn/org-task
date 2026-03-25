@@ -49,6 +49,14 @@
                 (file-attribute-modification-time
                  (file-attributes (buffer-file-name)))))))))
 
+(defun org-task-runtime-default-seed (&optional time)
+  "Return default sampling seed for TIME and current file seed iterator."
+  (let* ((date-seed (org-task-sampling-date-seed (or time (current-time))))
+         (iterator (org-task-core-seed-iterator org-task-file)))
+    (if (numberp iterator)
+        (format "%s:%d" date-seed iterator)
+      date-seed)))
+
 (defun org-task-runtime-sample-tasks (&optional k temperature seed)
   "Return sampled tasks for K, TEMPERATURE and SEED.
 Defaults: K=`org-task-default-k', TEMPERATURE=`org-task-default-temperature',
@@ -56,17 +64,25 @@ SEED=today local date."
   (let* ((tasks (or (org-task-core-collect-tasks) '()))
          (sample-k (min (max 0 (or k org-task-default-k 0)) (length tasks)))
          (sample-temp (or temperature org-task-default-temperature 1.0))
-         (sample-seed (or seed (org-task-sampling-date-seed (current-time)))))
+         (sample-seed (or seed (org-task-runtime-default-seed))))
     (org-task-sampling-select tasks sample-k sample-temp sample-seed (length tasks))))
 
 (defun org-task-runtime-clear-sample-cache ()
   "Clear agenda sample cache."
   (setq org-task-runtime--sample-cache nil))
 
+(defun org-task-runtime-reroll-today ()
+  "Increment current file seed iterator, clear cache, and return new seed."
+  (let* ((current (org-task-core-seed-iterator org-task-file))
+         (next (if (numberp current) (1+ current) 0)))
+    (org-task-core-set-seed-iterator next org-task-file)
+    (org-task-runtime-clear-sample-cache)
+    (org-task-runtime-default-seed)))
+
 (defun org-task-runtime--sampled-id-set (k temperature seed)
   "Return hash-table set of sampled ids for K, TEMPERATURE, and SEED."
   (let* ((key (list (file-truename (expand-file-name org-task-file))
-                    (or seed (org-task-sampling-date-seed (current-time)))
+                    (or seed (org-task-runtime-default-seed))
                     (or k org-task-default-k)
                     (or temperature org-task-default-temperature)
                     (org-task-runtime--task-file-cache-stamp)))

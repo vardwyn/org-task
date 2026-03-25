@@ -84,6 +84,50 @@
   (should (eq 'once (org-task-core-normalize-repeat-mode "once")))
   (should (eq 'once (org-task-core-normalize-repeat-mode "one-shot"))))
 
+(ert-deftest org-task-core-seed-iterator-roundtrip ()
+  "Roundtrip task file seed read and write
+- Create temp .org file with no seed iteratior
+- Read seed iterator value - assert it's empty
+- write 0, read zero
+- write 3, read 3
+- ensure buffer has PROPERTY: ORG_TASK_SEED_ITERATOR 3 verbatim"
+  (let* ((temp-file (make-temp-file "org-task-seed-iterator" nil ".org"
+                                    "#+title: Tasks\n\n* TODO Seed test :task:\n"))
+         (buffer (find-file-noselect temp-file)))
+    (unwind-protect
+        (progn
+          (should-not (org-task-core-seed-iterator temp-file))
+          (should (= 0 (org-task-core-set-seed-iterator 0 temp-file)))
+          (should (= 0 (org-task-core-seed-iterator temp-file)))
+          (should (= 3 (org-task-core-set-seed-iterator 3 temp-file)))
+          (should (= 3 (org-task-core-seed-iterator temp-file)))
+          (with-current-buffer buffer
+            (save-excursion
+              (goto-char (point-min))
+              (should (re-search-forward
+                       "^#\\+PROPERTY: ORG_TASK_SEED_ITERATOR 3$"
+                       nil
+                       t)))))
+      (when (buffer-live-p buffer)
+        (kill-buffer buffer))
+      (delete-file temp-file))))
+
+(ert-deftest org-task-runtime-default-seed-includes-top-level-iterator ()
+  "With empty iterator seed default-seed returns just the date, with iterator seed present it returns date:iterator_seed"
+  (let* ((temp-file (make-temp-file "org-task-default-seed" nil ".org"
+                                    "#+title: Tasks\n\n* TODO Seed test :task:\n"))
+         (org-task-file temp-file))
+    (unwind-protect
+        (progn
+          (should (equal "2020-01-01"
+                         (org-task-runtime-default-seed
+                          (encode-time 0 0 0 1 1 2020))))
+          (org-task-core-set-seed-iterator 2 temp-file)
+          (should (equal "2020-01-01:2"
+                         (org-task-runtime-default-seed
+                          (encode-time 0 0 0 1 1 2020)))))
+      (delete-file temp-file))))
+
 (ert-deftest org-task-runtime-sample-tasks-deterministic ()
   (let* ((org-task-default-k 2)
          (org-task-default-temperature 1.0)
@@ -103,6 +147,33 @@
             (second (org-task-runtime-sample-tasks 2 1.0 "2026-02-18")))
         (should (equal (mapcar #'org-task-core-task-id first)
                        (mapcar #'org-task-core-task-id second)))))))
+
+(ert-deftest org-task-runtime-reroll-today-creates-and-increments-iterator ()
+  "Start with no iterator; call reroll-today; first call must create iterator 0;
+return seed date:0, clear the runtime sample cache;
+the second call must increment iterator to 1, return date:1 and clear the cache again"
+  (let* ((temp-file (make-temp-file "org-task-reroll" nil ".org"
+                                    "#+title: Tasks\n\n* TODO Seed test :task:\n"))
+         (org-task-file temp-file)
+         (org-task-runtime--sample-cache '(cached)))
+    (unwind-protect
+        (progn
+          (should (equal "2020-01-01:0"
+                         (cl-letf (((symbol-function 'current-time)
+                                    (lambda ()
+                                      (encode-time 0 0 0 1 1 2020))))
+                           (org-task-runtime-reroll-today))))
+          (should (= 0 (org-task-core-seed-iterator temp-file)))
+          (should-not org-task-runtime--sample-cache)
+          (setq org-task-runtime--sample-cache '(cached-again))
+          (should (equal "2020-01-01:1"
+                         (cl-letf (((symbol-function 'current-time)
+                                    (lambda ()
+                                      (encode-time 0 0 0 1 1 2020))))
+                           (org-task-runtime-reroll-today))))
+          (should (= 1 (org-task-core-seed-iterator temp-file)))
+          (should-not org-task-runtime--sample-cache))
+      (delete-file temp-file))))
 
 (ert-deftest org-task-agenda-block-uses-lazy-skip-function ()
   (let ((org-task-include-tag "task")

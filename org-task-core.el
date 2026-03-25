@@ -72,6 +72,9 @@
 (defconst org-task-core-last-done-property "ORG_TASK_LAST_DONE"
   "Property name for last completion date.")
 
+(defconst org-task-core-seed-iterator-property "ORG_TASK_SEED_ITERATOR"
+  "Top-level file property name for daily sample reroll iteration.")
+
 (cl-defstruct (org-task-core-task
                (:constructor org-task-core-task-create))
   id marker title weight tweak age-days open-days age-s0 age-alpha age-cap
@@ -108,6 +111,68 @@
                   86400.0))
         (error nil))
     nil))
+
+(defun org-task-core--task-file-buffer (&optional file)
+  "Return visiting buffer for FILE or `org-task-file'."
+  (find-file-noselect (expand-file-name (or file org-task-file))))
+
+(defun org-task-core--top-scope-limit ()
+  "Return position of first heading, or `point-max' when none exists."
+  (save-excursion
+    (goto-char (point-min))
+    (or (when (re-search-forward org-outline-regexp-bol nil t)
+          (match-beginning 0))
+        (point-max))))
+
+(defun org-task-core-file-property-value (property &optional file)
+  "Return top-level PROPERTY value from FILE, or nil when absent."
+  (with-current-buffer (org-task-core--task-file-buffer file)
+    (save-excursion
+      (save-restriction
+        (widen)
+        (let ((case-fold-search t)
+              (limit (org-task-core--top-scope-limit))
+              (regexp (format "^[ \t]*#\\+PROPERTY:[ \t]+%s\\(?:[ \t]+\\(.*\\)\\)?[ \t]*$"
+                              (regexp-quote property)))
+              value)
+          (goto-char (point-min))
+          (while (re-search-forward regexp limit t)
+            (setq value (string-trim (or (match-string-no-properties 1) ""))))
+          (unless (string-empty-p (or value ""))
+            value))))))
+
+(defun org-task-core-seed-iterator (&optional file)
+  "Return top-level seed iterator from FILE, or nil when absent/invalid."
+  (let ((value (org-task-core-file-property-value
+                org-task-core-seed-iterator-property
+                file)))
+    (when (and value (string-match-p "\\`[0-9]+\\'" value))
+      (string-to-number value))))
+
+(defun org-task-core-set-seed-iterator (value &optional file)
+  "Set top-level seed iterator to VALUE in FILE and save it.
+VALUE is stored in a `#+PROPERTY:' line and returned as an integer."
+  (let* ((iterator (max 0 (prefix-numeric-value value)))
+         (line (format "#+PROPERTY: %s %d"
+                       org-task-core-seed-iterator-property
+                       iterator)))
+    (with-current-buffer (org-task-core--task-file-buffer file)
+      (save-excursion
+        (save-restriction
+          (widen)
+          (let ((case-fold-search t)
+                (limit (org-task-core--top-scope-limit))
+                (regexp (format "^[ \t]*#\\+PROPERTY:[ \t]+%s\\(?:[ \t]+\\(.*\\)\\)?[ \t]*$"
+                                (regexp-quote org-task-core-seed-iterator-property))))
+            (goto-char (point-min))
+            (if (re-search-forward regexp limit t)
+                (replace-match line t t)
+              (goto-char (point-min))
+              (while (looking-at-p "^[ \t]*#\\+")
+                (forward-line 1))
+              (insert line "\n")))))
+      (save-buffer))
+    iterator))
 
 (defun org-task-core--leaf-heading-p ()
   "Return non-nil if current heading has no children."

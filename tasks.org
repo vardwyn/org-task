@@ -1,5 +1,6 @@
 #+title: Tasks
 #+TODO: TODO(t) STRT(s) | DONE(d) FIN(f)
+#+PROPERTY: ORG_TASK_SEED_ITERATOR 0
 
 * Work defaults
 :PROPERTIES:

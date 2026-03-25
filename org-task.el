@@ -135,6 +135,20 @@ and today's local date seed."
   (org-task-runtime-sample-tasks k temperature seed))
 
 ;;;###autoload
+(defun org-task-reroll-today ()
+  "Bump today's file-level seed iterator and return the new effective seed."
+  (interactive)
+  (let ((seed (org-task-runtime-reroll-today)))
+    (when-let* ((agenda-buffer (and (boundp 'org-agenda-buffer-name)
+                                    (get-buffer org-agenda-buffer-name))))
+      (with-current-buffer agenda-buffer
+        (when (and (derived-mode-p 'org-agenda-mode)
+                   (fboundp 'org-agenda-redo))
+          (org-agenda-redo))))
+    (message "org-task: rerolled today's sample (%s)" seed)
+    seed))
+
+;;;###autoload
 (defun org-task-agenda-skip-non-sampled (&optional k temperature seed)
   "Agenda skip function keeping only sampled tasks for K/T/SEED."
   (org-task-runtime-agenda-skip-non-sampled k temperature seed))
